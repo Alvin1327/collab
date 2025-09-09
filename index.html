@@ -1,110 +1,292 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <title>Tom & Jerry Dashboard</title>
-  <style>
-    body {
-      margin: 0;
-      font-family: sans-serif;
-      background: #f0e68c url('https://i.imgur.com/WKp0p5T.png') no-repeat center bottom;
-      background-size: contain;
-    }
-    header {
-      background: #8b4513;
-      color: white;
-      padding: 20px;
-      text-align: center;
-      font-size: 2em;
-      position: sticky;
-      top: 0;
-    }
-    .dashboard {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-      gap: 15px;
-      padding: 20px;
-    }
-    .card {
-      background: rgba(255, 255, 255, 0.85);
-      border-radius: 8px;
-      padding: 20px;
-      text-align: center;
-      box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-      position: relative;
-      overflow: hidden;
-    }
-    .card h2 { margin: 0 0 10px; }
-    .card p {
-      font-size: 1.5em;
-      margin: 0;
-    }
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Games Dashboard — Downloads & Gallery</title>
+<style>
+  /* Minimal utility-like styles (small Tailwind-like subset) */
+  :root{--bg:#0f1724;--card:#0b1220;--muted:#94a3b8;--accent:#06b6d4;--glass:rgba(255,255,255,0.03)}
+  *{box-sizing:border-box}body{margin:0;font-family:Inter,ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,"Helvetica Neue",Arial;background:
+  linear-gradient(180deg,#071023 0%, #071426 60%);color:#e6eef6;min-height:100vh}
+  .container{max-width:1180px;margin:28px auto;padding:20px}
+  .header{display:flex;gap:12px;align-items:center;justify-content:space-between;margin-bottom:18px}
+  .brand{display:flex;gap:12px;align-items:center}
+  .logo{width:44px;height:44px;border-radius:10px;background:linear-gradient(135deg,#06b6d4,#0ea5a9);display:grid;place-items:center;font-weight:700}
+  .h1{font-size:20px;font-weight:700}
+  .controls{display:flex;gap:10px;align-items:center}
+  input[type="search"]{background:var(--glass);border:1px solid rgba(255,255,255,0.04);padding:8px 12px;border-radius:10px;color:inherit}
+  select{background:var(--glass);border:1px solid rgba(255,255,255,0.04);padding:8px 10px;border-radius:10px;color:inherit}
 
-    /* Jerry enters from left */
-    .card::before {
-      content: "";
-      position: absolute;
-      width: 80px;
-      height: 80px;
-      background: url('https://i.imgur.com/VzW2bTb.png') no-repeat center center;
-      background-size: contain;
-      top: 50%;
-      left: -100px;
-      transform: translateY(-50%);
-      animation: sneak-in 4s ease-in-out infinite alternate;
-    }
+  /* Grid */
+  .grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+  @media (max-width:980px){.grid{grid-template-columns:repeat(2,1fr)}}
+  @media (max-width:640px){.grid{grid-template-columns:1fr}}
 
-    /* Tom chases from right on hover */
-    .card:hover::after {
-      content: "";
-      position: absolute;
-      width: 100px;
-      height: 100px;
-      background: url('https://i.imgur.com/A7DqW4A.png') no-repeat center center;
-      background-size: contain;
-      top: 50%;
-      right: -120px;
-      transform: translateY(-50%);
-      animation: chase 2s ease-in-out forwards;
-    }
+  /* Card */
+  .card{background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));border:1px solid rgba(255,255,255,0.03);padding:12px;border-radius:12px;overflow:hidden}
+  .thumb{width:100%;height:160px;border-radius:8px;background-size:cover;background-position:center;display:block;margin-bottom:10px}
+  .meta{display:flex;justify-content:space-between;align-items:center}
+  .title{font-weight:700}
+  .muted{color:var(--muted);font-size:13px}
+  .btn{background:linear-gradient(90deg,var(--accent),#0891b2);border:none;padding:8px 12px;border-radius:8px;color:#021;cursor:pointer;font-weight:700}
+  .btn:active{transform:translateY(1px)}
 
-    @keyframes sneak-in {
-      from { left: -100px; }
-      to { left: 10px; }
-    }
-    @keyframes chase {
-      to { right: 10px; }
-    }
-  </style>
+  /* Gallery modal */
+  .lightbox{position:fixed;inset:0;display:none;background:rgba(2,6,23,0.85);align-items:center;justify-content:center;z-index:40;padding:20px}
+  .lightbox.open{display:flex}
+  .lightbox img{max-width:95%;max-height:86vh;border-radius:10px;box-shadow:0 8px 30px rgba(2,6,23,0.8)}
+  .lb-close{position:absolute;top:18px;right:18px;background:#061127;border-radius:8px;padding:8px;color:var(--muted);border:1px solid rgba(255,255,255,0.03);cursor:pointer}
+
+  /* Table / list */
+  .list-panel{margin-top:18px;padding:12px;border-radius:12px;background:linear-gradient(180deg, rgba(255,255,255,0.012), rgba(255,255,255,0.007));border:1px solid rgba(255,255,255,0.02)}
+  .row{display:flex;gap:10px;align-items:center;justify-content:space-between;padding:8px 6px;border-bottom:1px dashed rgba(255,255,255,0.02)}
+  .row:last-child{border-bottom:0}
+  .small{font-size:13px;color:var(--muted)}
+
+  /* Footer */
+  footer{margin-top:20px;text-align:center;color:var(--muted);font-size:13px}
+</style>
 </head>
 <body>
-  <header>Tom & Jerry Dashboard</header>
-  <div class="dashboard">
-    <div class="card">
-      <h2>Cheese Collected</h2>
-      <p id="cheese">0</p>
-    </div>
-    <div class="card">
-      <h2>Escapes</h2>
-      <p id="escapes">0</p>
-    </div>
-    <div class="card">
-      <h2>Chases</h2>
-      <p id="chases">0</p>
-    </div>
-  </div>
 
-  <script>
-    let cheese = 0, escapes = 0, chases = 0;
+<div class="container">
+  <header class="header">
+    <div class="brand">
+      <div class="logo">G</div>
+      <div>
+        <div class="h1">GameHub — Download & Gallery</div>
+        <div class="small">Organize downloadable game demos, screenshots & promos</div>
+      </div>
+    </div>
 
-    setInterval(() => {
-      cheese += Math.floor(Math.random() * 5);
-      escapes += Math.floor(Math.random() * 3);
-      chases += Math.floor(Math.random() * 4);
-      document.getElementById('cheese').textContent = cheese;
-      document.getElementById('escapes').textContent = escapes;
-      document.getElementById('chases').textContent = chases;
-    }, 2000);
-  </script>
+    <div class="controls">
+      <input id="search" type="search" placeholder="Search games, tags, titles..." />
+      <select id="filter">
+        <option value="all">All genres</option>
+        <option value="action">Action</option>
+        <option value="rpg">RPG</option>
+        <option value="fighting">Fighting</option>
+      </select>
+      <button id="uploadDemo" class="btn">Upload (demo)</button>
+    </div>
+  </header>
+
+  <!-- KPI / Quick stats -->
+  <section style="display:flex;gap:12px;margin-bottom:14px;flex-wrap:wrap">
+    <div class="card" style="flex:1;min-width:180px">
+      <div style="font-size:13px;color:var(--muted)">Total Games</div>
+      <div style="font-weight:800;font-size:20px">24</div>
+    </div>
+    <div class="card" style="flex:1;min-width:180px">
+      <div style="font-size:13px;color:var(--muted)">Available Downloads</div>
+      <div style="font-weight:800;font-size:20px">86</div>
+    </div>
+    <div class="card" style="flex:1;min-width:180px">
+      <div style="font-size:13px;color:var(--muted)">Gallery Images</div>
+      <div style="font-weight:800;font-size:20px">420+</div>
+    </div>
+  </section>
+
+  <!-- Grid of games -->
+  <section id="gamesGrid" class="grid"></section>
+
+  <!-- simple list of downloads / recent -->
+  <section class="list-panel" id="recentDownloads">
+    <div style="font-weight:700;margin-bottom:8px">Recent downloads</div>
+    <!-- rows injected by JS -->
+  </section>
+
+  <footer>
+    <div>Replace placeholder images with official press-kit assets or legally licensed images (Unsplash / Pexels). See notes.</div>
+  </footer>
+</div>
+
+<!-- Lightbox -->
+<div id="lightbox" class="lightbox" aria-hidden="true">
+  <button id="lbClose" class="lb-close">Close ✕</button>
+  <img id="lbImg" alt="screenshot" src="" />
+</div>
+
+<script>
+/*
+  Single-file JS to power the dashboard.
+  - Replace `games` array data with your backend or static JSON.
+  - DO NOT hotlink copyrighted publisher assets without permission.
+  - Placeholder images are fetched from Unsplash source with search queries.
+*/
+
+const games = [
+  {
+    id: 'gta5',
+    title: 'GTA — (example)',
+    genre: 'action',
+    platform: 'PC/Console',
+    desc: 'Open-world action (placeholder). Replace with official press assets if licensed.',
+    thumb: 'https://source.unsplash.com/collection/190727/800x600?sig=1', // generic gaming photo
+    gallery: [
+      'https://source.unsplash.com/featured/?gaming,city,night',
+      'https://source.unsplash.com/featured/?racing,car',
+    ],
+    download: 'files/gta5-demo.zip' // placeholder path - replace with real file urls
+  },
+  {
+    id: 'cyber',
+    title: 'Cyber Night — (example)',
+    genre: 'rpg',
+    platform: 'PC',
+    desc: 'Futuristic cyberpunk-styled demo (placeholder)',
+    thumb: 'https://source.unsplash.com/featured/?cyberpunk,city',
+    gallery: [
+      'https://source.unsplash.com/featured/?cyberpunk,neon',
+      'https://source.unsplash.com/featured/?cyberpunk,art'
+    ],
+    download: 'files/cyber-demo.zip'
+  },
+  {
+    id: 'kombat',
+    title: 'Kombat Arena — (example)',
+    genre: 'fighting',
+    platform: 'Console',
+    desc: 'Arcade fighter demo (placeholder)',
+    thumb: 'https://source.unsplash.com/featured/?fighting,arcade',
+    gallery: [
+      'https://source.unsplash.com/featured/?martial,action',
+      'https://source.unsplash.com/featured/?arena,fight'
+    ],
+    download: 'files/kombat-demo.zip'
+  }
+];
+
+// DOM refs
+const grid = document.getElementById('gamesGrid');
+const search = document.getElementById('search');
+const filter = document.getElementById('filter');
+const recent = document.getElementById('recentDownloads');
+const lightbox = document.getElementById('lightbox');
+const lbImg = document.getElementById('lbImg');
+const lbClose = document.getElementById('lbClose');
+
+// render cards
+function renderList(list=games){
+  grid.innerHTML = '';
+  for(const g of list){
+    const card = document.createElement('div');
+    card.className = 'card';
+    card.innerHTML = `
+      <div class="thumb" style="background-image:url('${g.thumb}')"></div>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+        <div>
+          <div class="title">${escapeHTML(g.title)}</div>
+          <div class="muted small">${escapeHTML(g.platform)} · ${escapeHTML(g.genre)}</div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:6px">
+          <button class="btn" data-dl="${g.download}">Download</button>
+          <button class="btn" data-gallery-id="${g.id}" style="background:transparent;border:1px solid rgba(255,255,255,0.06);color:inherit">Gallery</button>
+        </div>
+      </div>
+      <div class="muted small">${escapeHTML(g.desc)}</div>
+    `;
+    grid.appendChild(card);
+
+    // download handler
+    card.querySelector('[data-dl]')?.addEventListener('click', e=>{
+      const url = e.currentTarget.getAttribute('data-dl');
+      // trigger a download (for static examples; replace with real files/links)
+      triggerDownload(url, g.title + '.zip');
+      // add to recent
+      addRecent(g.title, url);
+    });
+
+    // gallery handler
+    card.querySelector('[data-gallery-id]')?.addEventListener('click', e=>{
+      openGallery(g.gallery);
+    });
+  }
+}
+
+// lightbox functions
+function openGallery(images){
+  if(!images || images.length===0) return alert('No gallery images available.');
+  lbImg.src = images[0];
+  lightbox.classList.add('open');
+  lightbox.setAttribute('aria-hidden','false');
+
+  // clicking the image cycles to next
+  let idx = 0;
+  lbImg.onclick = ()=> {
+    idx = (idx+1) % images.length; lbImg.src = images[idx];
+  };
+}
+lbClose.addEventListener('click', ()=>{ lightbox.classList.remove('open'); lightbox.setAttribute('aria-hidden','true'); lbImg.src=''; });
+
+// simple download helper (works for same-origin or absolute links if CORS allows)
+function triggerDownload(url, filename){
+  // For demo: if url starts with "files/" we simulate by creating a tiny text file
+  if(url.startsWith('files/')){
+    const blob = new Blob([`This is a placeholder demo file for ${filename}`], {type:'application/zip'});
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = filename; a.click(); URL.revokeObjectURL(a.href);
+  } else {
+    // cross-origin download: open in new tab (may not auto-download)
+    window.open(url, '_blank', 'noopener');
+  }
+}
+
+// recent downloads manager
+const RECENT_MAX = 6;
+function addRecent(title, url){
+  const now = new Date().toLocaleString();
+  const item = {title, url, time: now};
+  const prev = JSON.parse(localStorage.getItem('recent') || '[]');
+  prev.unshift(item);
+  localStorage.setItem('recent', JSON.stringify(prev.slice(0,RECENT_MAX)));
+  renderRecent();
+}
+function renderRecent(){
+  const list = JSON.parse(localStorage.getItem('recent') || '[]');
+  recent.innerHTML = '<div style="font-weight:700;margin-bottom:8px">Recent downloads</div>';
+  if(list.length===0){
+    recent.innerHTML += '<div class="small">No downloads yet — click any Download button.</div>';
+    return;
+  }
+  for(const it of list){
+    const row = document.createElement('div'); row.className='row';
+    row.innerHTML = `<div><div style="font-weight:700">${escapeHTML(it.title)}</div><div class="small">${escapeHTML(it.time)}</div></div>
+    <div style="display:flex;gap:8px;align-items:center">
+      <a class="small muted" href="${escapeAttr(it.url)}" target="_blank" rel="noopener">Open</a>
+      <button class="btn" onclick="window.open('${escapeAttr(it.url)}','_blank')">Re-Download</button>
+    </div>`;
+    recent.appendChild(row);
+  }
+}
+
+// filter & search
+function applyFilters(){
+  const q = (search.value || '').trim().toLowerCase();
+  const f = filter.value;
+  const filtered = games.filter(g=>{
+    const matchesFilter = f==='all' ? true : g.genre === f;
+    const matchesQuery = !q ? true : (g.title + ' ' + g.desc + ' ' + g.genre).toLowerCase().includes(q);
+    return matchesFilter && matchesQuery;
+  });
+  renderList(filtered);
+}
+
+search.addEventListener('input', applyFilters);
+filter.addEventListener('change', applyFilters);
+
+// helper: very small escape funcs
+function escapeHTML(s){ return String(s).replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;'); }
+function escapeAttr(s){ return String(s).replaceAll("'", "\\'").replaceAll('"','\\"'); }
+
+// init
+renderList();
+renderRecent();
+
+// demo upload button (local-only; replace with real file upload endpoint)
+document.getElementById('uploadDemo').addEventListener('click', ()=>{
+  alert('This demo does not actually upload files. Integrate a server endpoint or use a cloud storage API (S3, Firebase Storage) to accept uploads and generate download links.');
+});
+</script>
 </body>
 </html>
