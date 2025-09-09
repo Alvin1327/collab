@@ -1,284 +1,110 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>Tom & Jerry — Series Dashboard</title>
+  <meta charset="UTF-8">
+  <title>Tom & Jerry Dashboard</title>
+  <style>
+    body {
+      margin: 0;
+      font-family: sans-serif;
+      background: #f0e68c url('https://i.imgur.com/WKp0p5T.png') no-repeat center bottom;
+      background-size: contain;
+    }
+    header {
+      background: #8b4513;
+      color: white;
+      padding: 20px;
+      text-align: center;
+      font-size: 2em;
+      position: sticky;
+      top: 0;
+    }
+    .dashboard {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 15px;
+      padding: 20px;
+    }
+    .card {
+      background: rgba(255, 255, 255, 0.85);
+      border-radius: 8px;
+      padding: 20px;
+      text-align: center;
+      box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+      position: relative;
+      overflow: hidden;
+    }
+    .card h2 { margin: 0 0 10px; }
+    .card p {
+      font-size: 1.5em;
+      margin: 0;
+    }
 
-<!-- Chart.js CDN -->
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    /* Jerry enters from left */
+    .card::before {
+      content: "";
+      position: absolute;
+      width: 80px;
+      height: 80px;
+      background: url('https://i.imgur.com/VzW2bTb.png') no-repeat center center;
+      background-size: contain;
+      top: 50%;
+      left: -100px;
+      transform: translateY(-50%);
+      animation: sneak-in 4s ease-in-out infinite alternate;
+    }
 
-<style>
-  :root{
-    --bg:#fffbf1;
-    --card:#ffffff;
-    --accent:#e74c3c; /* Jerry-ish orange / Tom-ish blue used below */
-    --accent-2:#1e3a8a;
-    --muted:#6b7280;
-    --glass: rgba(255,255,255,0.7);
-    font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
-  }
-  *{box-sizing:border-box}
-  html,body{height:100%;margin:0;background:linear-gradient(180deg,var(--bg),#fff);color:#111}
-  .wrap{max-width:1200px;margin:28px auto;padding:20px;display:grid;grid-template-columns:1fr 360px;gap:20px;}
-  header{grid-column:1/-1;display:flex;align-items:center;gap:16px}
-  .logo{
-    width:84px;height:84px;border-radius:12px;display:flex;align-items:center;justify-content:center;
-    background: linear-gradient(180deg,#fbbf24,#fb923c); box-shadow:0 6px 18px rgba(0,0,0,0.08);
-    border:4px solid rgba(0,0,0,0.03);
-    font-weight:900;color:#fff;font-size:20px;
-  }
-  h1{margin:0;font-size:22px}
-  .sub{color:var(--muted);font-size:13px;margin-top:4px}
-  .main{background:var(--card);border-radius:14px;padding:18px;box-shadow:0 6px 20px rgba(20,20,40,0.04)}
-  .side{background:var(--card);border-radius:14px;padding:18px;box-shadow:0 6px 20px rgba(20,20,40,0.04)}
-  .kpi-row{display:flex;gap:12px;margin-top:12px;flex-wrap:wrap}
-  .kpi{flex:1;min-width:160px;background:linear-gradient(180deg,#fff,var(--glass));padding:12px;border-radius:10px;border:1px solid rgba(0,0,0,0.04)}
-  .kpi .label{font-size:12px;color:var(--muted)}
-  .kpi .val{font-weight:800;font-size:20px;margin-top:6px}
-  .controls{display:flex;gap:8px;align-items:center;margin-top:12px}
-  .controls input, .controls select{padding:8px 10px;border-radius:8px;border:1px solid #e6e6e9;font-size:13px}
-  .grid-charts{display:grid;grid-template-columns:1fr 360px;gap:12px;margin-top:14px}
-  canvas{background:transparent;border-radius:8px}
-  table{width:100%;border-collapse:collapse;margin-top:12px;font-size:13px}
-  th,td{padding:8px 10px;text-align:left;border-bottom:1px solid #f2f2f4}
-  th{background:#fafafa;font-weight:700}
-  .muted{color:var(--muted);font-size:13px}
-  .small{font-size:12px;color:var(--muted)}
-  footer{grid-column:1/-1;text-align:center;color:var(--muted);font-size:12px;margin-top:18px}
-  /* playful footer badge */
-  .badge{display:inline-flex;gap:8px;align-items:center;padding:6px 10px;border-radius:999px;background:linear-gradient(90deg,var(--accent),var(--accent-2));color:#fff;font-weight:700}
-  /* responsive */
-  @media (max-width:980px){ .wrap{grid-template-columns:1fr; padding:12px} .grid-charts{grid-template-columns:1fr} .side{order:2} }
-</style>
+    /* Tom chases from right on hover */
+    .card:hover::after {
+      content: "";
+      position: absolute;
+      width: 100px;
+      height: 100px;
+      background: url('https://i.imgur.com/A7DqW4A.png') no-repeat center center;
+      background-size: contain;
+      top: 50%;
+      right: -120px;
+      transform: translateY(-50%);
+      animation: chase 2s ease-in-out forwards;
+    }
+
+    @keyframes sneak-in {
+      from { left: -100px; }
+      to { left: 10px; }
+    }
+    @keyframes chase {
+      to { right: 10px; }
+    }
+  </style>
 </head>
 <body>
-
-<div class="wrap">
-
-  <header>
-    <div class="logo">T&J</div>
-    <div>
-      <h1>Tom & Jerry — Series Dashboard</h1>
-      <div class="sub">Overview & sample analytics for the Tom & Jerry cartoon franchise (demo data). Created by William Hanna & Joseph Barbera — debuted Feb 10, 1940.</div>
+  <header>Tom & Jerry Dashboard</header>
+  <div class="dashboard">
+    <div class="card">
+      <h2>Cheese Collected</h2>
+      <p id="cheese">0</p>
     </div>
-    <div style="margin-left:auto;text-align:right">
-      <div class="small">Data: demo/sample (replace with authoritative episode list)</div>
-      <div style="margin-top:8px"><span class="badge">Classic Animation</span></div>
+    <div class="card">
+      <h2>Escapes</h2>
+      <p id="escapes">0</p>
     </div>
-  </header>
-
-  <!-- Main column -->
-  <section class="main">
-
-    <!-- quick KPIs -->
-    <div style="display:flex;align-items:center;justify-content:space-between;gap:12px">
-      <div>
-        <div style="font-weight:800">Series Snapshot</div>
-        <div class="small">A playful dashboard showcasing episodes by decade, character mentions, and a shortlist of episodes.</div>
-      </div>
-      <div class="small">First short: <strong>Puss Gets the Boot (1940)</strong></div>
+    <div class="card">
+      <h2>Chases</h2>
+      <p id="chases">0</p>
     </div>
+  </div>
 
-    <div class="kpi-row">
-      <div class="kpi">
-        <div class="label">Known Theatrical Shorts (approx.)</div>
-        <div class="val" id="kpi-shorts">~161</div>
-        <div class="small">varies by source (theatrical + TV specials)</div>
-      </div>
-      <div class="kpi">
-        <div class="label">TV Series / Specials (demo)</div>
-        <div class="val" id="kpi-tv">6+</div>
-        <div class="small">includes later TV revivals</div>
-      </div>
-      <div class="kpi">
-        <div class="label">Main Characters Tracked</div>
-        <div class="val" id="kpi-chars">4</div>
-        <div class="small">Tom, Jerry, Spike, Toodles</div>
-      </div>
-    </div>
+  <script>
+    let cheese = 0, escapes = 0, chases = 0;
 
-    <!-- controls -->
-    <div class="controls">
-      <input id="searchInput" placeholder="Search episode title or year..." />
-      <select id="decadeFilter">
-        <option value="all">All decades</option>
-        <option value="1940s">1940s</option>
-        <option value="1950s">1950s</option>
-        <option value="1960s">1960s</option>
-        <option value="2000s">2000s</option>
-      </select>
-      <button id="resetBtn" style="padding:8px 10px;border-radius:8px;border:0;background:#1e3a8a;color:#fff;cursor:pointer">Reset</button>
-      <div style="margin-left:auto" class="small muted">Facts: Hanna & Barbera created the characters; first theatrical short released Feb 10, 1940.</div>
-    </div>
-
-    <!-- charts & table -->
-    <div class="grid-charts">
-      <div style="padding:10px;background:linear-gradient(180deg,#fff,var(--glass));border-radius:10px;">
-        <canvas id="decadeChart" height="240"></canvas>
-      </div>
-
-      <aside class="side" style="padding:12px;">
-        <div style="font-weight:800">Character Appearances (sample)</div>
-        <canvas id="charChart" height="200" style="margin-top:10px"></canvas>
-
-        <div style="margin-top:12px">
-          <div style="font-weight:700">Quick facts</div>
-          <div class="small muted" style="margin-top:6px">
-            • Creators: William Hanna & Joseph Barbera. </footer>
-
-</div>
-
-<script>
-/* ===== sample dataset (demo) =====
-   This file intentionally ships demo data.
-   Replace `episodes` array with a full authoritative episode list as desired.
-*/
-const episodes = [
-  { id:1, title:"Puss Gets the Boot", year:1940, type:"Short", notes:"Debut (Jasper/Jinx) — created by Hanna & Barbera" },
-  { id:2, title:"The Midnight Snack", year:1941, type:"Short", notes:"Early classic" },
-  { id:3, title:"The Night Before Christmas", year:1941, type:"Short", notes:"Holiday short" },
-  { id:4, title:"The Yankee Doodle Mouse", year:1943, type:"Short", notes:"Academy Award winner" },
-  { id:5, title:"Mouse Trouble", year:1944, type:"Short", notes:"Academy Award winner" },
-  { id:6, title:"The Bowling Alley-Cat", year:1942, type:"Short", notes:"Classic gag-driven" },
-  { id:7, title:"Blue Cat Blues", year:1956, type:"Short", notes:"Darker ending" },
-  { id:8, title:"Down and Outing", year:1961, type:"Short", notes:"Gene Deitch era" },
-  { id:9, title:"The Cat Above and the Mouse Below", year:1964, type:"Short", notes:"Chuck Jones era" },
-  { id:10, title:"The Karate Guard", year:2005, type:"Short", notes:"Later revival short by Spike Brandt/Jean" },
-];
-
-/* mini-aggregations for charts */
-function bucketByDecade(list){
-  const buckets = {};
-  list.forEach(ep => {
-    const decade = Math.floor(ep.year/10)*10 + 's';
-    buckets[decade] = (buckets[decade] || 0) + 1;
-  });
-  // ensure decades ordering
-  const order = ['1940s','1950s','1960s','1970s','1980s','1990s','2000s','2010s','2020s'];
-  const labels = order.filter(d => buckets[d]);
-  const values = labels.map(l => buckets[l]);
-  return { labels, values };
-}
-
-function charCounts(list){
-  // demo: count rough mentions in notes (Tom/Jerry/Spike/Toodles)
-  const counts = { Tom:0, Jerry:0, Spike:0, Toodles:0 };
-  list.forEach(ep => {
-    const text = (ep.title + ' ' + ep.notes).toLowerCase();
-    if(text.includes('tom')|| text.includes('cat')) counts.Tom++;
-    if(text.includes('jerry')|| text.includes('mouse')|| text.includes('mice')) counts.Jerry++;
-    if(text.includes('spike')) counts.Spike++;
-    if(text.includes('toodles')) counts.Toodles++;
-  });
-  return counts;
-}
-
-/* render table */
-const tableBody = document.getElementById('tableBody');
-function renderTable(rows){
-  tableBody.innerHTML = '';
-  rows.forEach(r => {
-    const tr = document.createElement('tr');
-    tr.innerHTML = `<td>#${r.id}</td><td>${r.title}</td><td>${r.year}</td><td>${r.type}</td><td>${r.notes}</td>`;
-    tableBody.appendChild(tr);
-  });
-}
-renderTable(episodes);
-
-/* initial KPI population */
-document.getElementById('kpi-shorts').textContent = '~' + 161;
-document.getElementById('kpi-tv').textContent = '6+';
-document.getElementById('kpi-chars').textContent = Object.keys(charCounts(episodes)).length;
-
-/* Charts (Chart.js) */
-const decadeAgg = bucketByDecade(episodes);
-const ctx = document.getElementById('decadeChart').getContext('2d');
-const decadeChart = new Chart(ctx, {
-  type: 'bar',
-  data: {
-    labels: decadeAgg.labels,
-    datasets: [{
-      label: 'Episodes (sample)',
-      data: decadeAgg.values,
-      backgroundColor: decadeAgg.labels.map(l => l === '1940s' ? '#1e3a8a' : '#fb923c'),
-      borderRadius:6
-    }]
-  },
-  options:{
-    plugins:{legend:{display:false},tooltip:{mode:'index'}},
-    scales:{y:{beginAtZero:true}}
-  }
-});
-
-const charAgg = charCounts(episodes);
-const ctx2 = document.getElementById('charChart').getContext('2d');
-const charChart = new Chart(ctx2, {
-  type: 'doughnut',
-  data:{
-    labels: Object.keys(charAgg),
-    datasets:[{
-      data: Object.values(charAgg),
-      backgroundColor: ['#1e3a8a','#fb923c','#60a5fa','#f97316']
-    }]
-  },
-  options:{plugins:{legend:{position:'bottom'}}}
-});
-
-/* search & filter interactions */
-const searchInput = document.getElementById('searchInput');
-const decadeFilter = document.getElementById('decadeFilter');
-const resetBtn = document.getElementById('resetBtn');
-
-function applyFilters(){
-  const q = searchInput.value.trim().toLowerCase();
-  const dec = decadeFilter.value;
-  let filtered = episodes.slice();
-  if(dec !== 'all'){
-    const start = parseInt(dec.slice(0,4),10);
-    filtered = filtered.filter(e => Math.floor(e.year/10)*10 === start);
-  }
-  if(q){
-    filtered = filtered.filter(e => (e.title + ' ' + e.notes + ' ' + e.year).toLowerCase().includes(q));
-  }
-  renderTable(filtered);
-  // update charts to reflect filtered selection:
-  const d = bucketByDecade(filtered);
-  decadeChart.data.labels = d.labels;
-  decadeChart.data.datasets[0].data = d.values;
-  decadeChart.update();
-
-  const c = charCounts(filtered);
-  charChart.data.labels = Object.keys(c);
-  charChart.data.datasets[0].data = Object.values(c);
-  charChart.update();
-}
-searchInput.addEventListener('input', applyFilters);
-decadeFilter.addEventListener('change', applyFilters);
-resetBtn.addEventListener('click', ()=>{
-  searchInput.value=''; decadeFilter.value='all';
-  applyFilters();
-});
-
-/* small utilities: download CSV and print */
-document.getElementById('downloadCSV').addEventListener('click', ()=>{
-  const cols = ['id','title','year','type','notes'];
-  const csv = [
-    cols.join(','),
-    ...episodes.map(r => cols.map(c => `"${String(r[c]).replace(/"/g,'""')}"`).join(','))
-  ].join('\n');
-  const blob = new Blob([csv], {type:'text/csv'}); 
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a'); a.href = url; a.download = 'tom-and-jerry-episodes-sample.csv'; a.click();
-  URL.revokeObjectURL(url);
-});
-document.getElementById('printBtn').addEventListener('click', ()=>window.print());
-
-/* Small accessibility tweak: focus states */
-document.querySelectorAll('button,input,select').forEach(el=>{
-  el.addEventListener('keydown', (e)=>{ if(e.key==='Enter') el.click && el.click(); });
-});
-</script>
-
+    setInterval(() => {
+      cheese += Math.floor(Math.random() * 5);
+      escapes += Math.floor(Math.random() * 3);
+      chases += Math.floor(Math.random() * 4);
+      document.getElementById('cheese').textContent = cheese;
+      document.getElementById('escapes').textContent = escapes;
+      document.getElementById('chases').textContent = chases;
+    }, 2000);
+  </script>
 </body>
 </html>
