@@ -35,7 +35,7 @@ document.addEventListener("keydown",e=>{
   if(e.code==="Space"){
     for(let id in players){
       let p=players[id];
-      if(Math.hypot(me.x-p.x,me.y-p.y)<40){
+      if(id!==socket.id && Math.hypot(me.x-p.x,me.y-p.y)<40){
         socket.emit("shoot",{roomId,targetId:id});
       }
     }
@@ -49,6 +49,15 @@ socket.on("state",state=>{
 
 function draw(){
   ctx.clearRect(0,0,canvas.width,canvas.height);
+  
+  // Update scoreboard text
+  let scoreText = "";
+  for(let id in players){
+    scoreText += (id===socket.id ? "You: " : "Enemy: ") + players[id].score + " ";
+  }
+  document.getElementById("score").textContent = scoreText.trim();
+
+  // Draw all players
   for(let id in players){
     let p=players[id];
     ctx.fillStyle=id===socket.id?"lime":"red";
@@ -57,6 +66,7 @@ function draw(){
     ctx.fillText("Score:"+p.score,p.x,p.y-5);
   }
 }
+
 function loop(){ update(); draw(); requestAnimationFrame(loop); }
 loop();
 </script>
