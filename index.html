@@ -1,74 +1,537 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<title>2D Multiplayer Shooter</title>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>2D Multiplayer Shooter — Fixed</title>
 <style>
-  body { margin:0; background:#111; color:#fff; font-family:sans-serif; }
-  #game { display:block; margin:auto; background:#222; }
-  #score { position:fixed; top:10px; left:10px; font-size:18px; }
+  :root{ --bg:#0b0f14; --panel:#11151a; --accent:#ff7a59; --muted:#9aa6b2; --player1:#60a5fa; --player2:#fb7185; }
+  html,body{height:100%;margin:0;font-family:Inter,ui-sans-serif,system-ui,Segoe UI,Roboto,"Helvetica Neue",Arial;}
+  body{background:linear-gradient(180deg,#071019,#081221); color:#e6eef8; display:flex; align-items:center; justify-content:center; padding:20px;}
+  .wrap{width:940px; max-width:96%; display:grid; grid-template-columns:1fr 300px; gap:16px;}
+  .card{background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01)); border-radius:12px; padding:12px; box-shadow:0 10px 30px rgba(2,6,23,0.6);}
+  canvas{display:block;border-radius:8px;background:#061018; width:100%; height:600px;}
+  .sidebar{height:600px; overflow:auto;}
+  h1{font-size:18px;margin:0 0 8px 0}
+  .meta{color:var(--muted);font-size:13px;margin-bottom:10px}
+  .pill{background:rgba(255,255,255,0.03);padding:8px 12px;border-radius:999px;font-weight:600}
+  .small{font-size:13px;color:var(--muted)}
+  .btn{display:inline-block;padding:8px 10px;border-radius:10px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.03);cursor:pointer;color:inherit;margin-right:6px}
+  .status{margin-top:8px;color:var(--muted);font-size:13px}
+  .legend{display:flex;gap:8px;margin-top:10px}
+  .dot{width:12px;height:12px;border-radius:3px}
+  footer{margin-top:14px;color:var(--muted);font-size:12px}
 </style>
 </head>
 <body>
-<div id="score">Loading...</div>
-<canvas id="game" width="800" height="500"></canvas>
-<script src="/socket.io/socket.io.js"></script>
+<div class="wrap">
+  <div class="card">
+    <h1>2D Cover Shooter — Multiplayer (WASD + Space)</h1>
+    <div class="meta">Move with <b>W A S D</b>. Shoot with <b>Space</b>. Share link `#ROOMID` to let others join when using the Socket.IO server.</div>
+    <canvas id="game" width="1200" height="720"></canvas>
+  </div>
+
+  <div class="card sidebar">
+    <div style="display:flex;justify-content:space-between;align-items:center">
+      <div>
+        <div class="pill" id="youScore">You: 0</div>
+        <div class="small" id="otherScore" style="margin-top:6px">Opponent: —</div>
+      </div>
+      <div>
+        <button class="btn" id="btnRespawn">Respawn</button>
+      </div>
+    </div>
+
+    <div class="status" id="connStatus">Connecting to server...</div>
+    <div style="margin-top:10px" class="small">Room link (share when server running):</div>
+    <div id="roomLink" class="small" style="word-break:break-all;color:#9ae6b4;margin-top:6px"></div>
+
+    <div class="legend">
+      <div style="display:flex;align-items:center;gap:8px"><div class="dot" style="background:var(--player1)"></div><div class="small">You</div></div>
+      <div style="display:flex;align-items:center;gap:8px"><div class="dot" style="background:var(--player2)"></div><div class="small">Opponent</div></div>
+      <div style="display:flex;align-items:center;gap:8px"><div class="dot" style="background:#1f2937"></div><div class="small">Cover</div></div>
+    </div>
+
+    <div style="margin-top:12px" class="small">Controls for local fallback:</div>
+    <ul class="small" style="margin-top:6px;color:var(--muted)">
+      <li>Player (you): WASD + Space</li>
+      <li>Local Opponent (fallback): Arrow Keys + Enter</li>
+    </ul>
+
+    <footer>Client-first demo — server recommended for real multiplayer.</footer>
+  </div>
+</div>
+
+<!-- Attempt to load socket.io client. If unavailable, fallback to local mode. -->
 <script>
-const canvas=document.getElementById("game"),ctx=canvas.getContext("2d");
-const socket=io();
-let roomId=location.hash.slice(1)||"default";
-socket.emit("joinRoom",roomId);
+(function(){
+  const canvas = document.getElementById('game');
+  const ctx = canvas.getContext('2d', { alpha: false });
+  const W = canvas.width, H = canvas.height;
 
-let me={x:100,y:100,score:0},players={};
-let keys={};
-document.addEventListener("keydown",e=>keys[e.code]=true);
-document.addEventListener("keyup",e=>keys[e.code]=false);
+  // UI
+  const connStatus = document.getElementById('connStatus');
+  const roomLinkEl = document.getElementById('roomLink');
+  const youScoreEl = document.getElementById('youScore');
+  const otherScoreEl = document.getElementById('otherScore');
+  const btnRespawn = document.getElementById('btnRespawn');
 
-function update(){
-  if(keys["KeyW"]) me.y-=3;
-  if(keys["KeyS"]) me.y+=3;
-  if(keys["KeyA"]) me.x-=3;
-  if(keys["KeyD"]) me.x+=3;
-  socket.emit("move",{roomId,data:me});
-}
-document.addEventListener("keydown",e=>{
-  if(e.code==="Space"){
-    for(let id in players){
-      let p=players[id];
-      if(id!==socket.id && Math.hypot(me.x-p.x,me.y-p.y)<40){
-        socket.emit("shoot",{roomId,targetId:id});
+  // Room from URL fragment
+  const ROOM = (location.hash && location.hash.slice(1)) || ('room-' + Math.random().toString(36).slice(2,8));
+  roomLinkEl.textContent = location.origin + location.pathname + '#' + ROOM;
+
+  // Game constants
+  const PLAYER_SIZE = 36;
+  const MAX_HP = 100;
+  const FIRE_COOLDOWN = 260; // ms
+  const BULLET_SPEED = 900;
+
+  // Cover obstacles
+  const covers = [
+    { x: 220, y: 220, w: 260, h: 28 },
+    { x: 680, y: 140, w: 36, h: 260 },
+    { x: 420, y: 420, w: 300, h: 40 },
+    { x: 60, y: 520, w: 160, h: 36 },
+    { x: 960, y: 300, w: 160, h: 36 },
+  ];
+
+  // Input
+  const keys = {};
+  const mouse = { x: W/2, y: H/2, down:false };
+
+  window.addEventListener('keydown', e => { keys[e.code] = true; if (['Space','Enter'].includes(e.code)) e.preventDefault(); });
+  window.addEventListener('keyup', e => { keys[e.code] = false; });
+
+  // Basic particle blood
+  const particles = [];
+
+  // Entities
+  // players: { id: { x,y,ang,score,hp,alive } }
+  const players = {};
+  let localId = null;
+  let lastShot = 0;
+  const bullets = []; // { x,y,vx,vy,owner }
+
+  // Network (Socket.IO) variables
+  let socket = null;
+  let usingServer = false;
+  let socketConnected = false;
+  const SERVER_WS = (location.protocol === 'https:' ? 'wss://' : 'ws://') + location.hostname + ':3000'; // fallback note
+
+  function spawnLocalPlayer(id, opts = {}) {
+    players[id] = Object.assign({
+      id,
+      x: Math.random() * (W - 200) + 100,
+      y: Math.random() * (H - 200) + 100,
+      ang: 0,
+      score: 0,
+      hp: MAX_HP,
+      alive: true
+    }, opts);
+  }
+
+  // Local fallback: spawn two players for single-machine 2-player testing
+  function startLocalFallback() {
+    usingServer = false;
+    connStatus.textContent = 'Local fallback (no server). Use Arrow keys + Enter for second player.';
+    spawnLocalPlayer('p-you', { x: 220, y: 200 });
+    spawnLocalPlayer('p-other', { x: 920, y: 420 });
+    localId = 'p-you';
+    // mark remote id for UI
+    updateScoreUI();
+  }
+
+  // Try to initialize Socket.IO if available
+  function tryInitSocketIo() {
+    // If the global io function is available, try connecting. If not, fallback.
+    if (typeof io === 'undefined') {
+      // Socket.io not present; fallback
+      startLocalFallback();
+      return;
+    }
+
+    try {
+      socket = io(); // default path
+    } catch (e) {
+      startLocalFallback();
+      return;
+    }
+
+    // handle connection lifecycle
+    connStatus.textContent = 'Connecting to Socket.IO server...';
+    socket.on('connect', () => {
+      usingServer = true;
+      socketConnected = true;
+      localId = socket.id;
+      connStatus.textContent = 'Connected (server mode). Room: ' + ROOM;
+      socket.emit('joinRoom', ROOM);
+    });
+
+    socket.on('disconnect', () => {
+      socketConnected = false;
+      connStatus.textContent = 'Disconnected from server — switching to local fallback in 1s...';
+      // graceful fallback after short delay
+      setTimeout(() => {
+        if (!socketConnected) startLocalFallback();
+      }, 1000);
+    });
+
+    // server broadcasts state object (map of players)
+    socket.on('state', (state) => {
+      // state is expected to be an object mapping socket.id => { x,y,score,hp }
+      // map into players
+      for (const id in state) {
+        if (!players[id]) spawnLocalPlayer(id);
+        Object.assign(players[id], state[id]);
       }
+      // remove players that disappeared
+      for (const id in players) {
+        if (!state[id] && id !== localId) delete players[id];
+      }
+      updateScoreUI();
+    });
+
+    // server might echo specific events
+    socket.on('spawn', (data) => {
+      if (data && data.id && !players[data.id]) spawnLocalPlayer(data.id, { x: data.x, y: data.y });
+    });
+
+    socket.on('peer-leave', (id) => {
+      if (players[id]) delete players[id];
+      updateScoreUI();
+    });
+
+    // If server doesn't respond in 2s, fallback
+    const fallbackTimer = setTimeout(() => {
+      if (!socketConnected) {
+        startLocalFallback();
+      }
+    }, 2000);
+  }
+
+  // Small helpers
+  function clamp(v, a, b) { return Math.max(a, Math.min(b, v)); }
+  function rectOverlap(a,b){ return !(a.x + a.w < b.x || a.x > b.x + b.w || a.y + a.h < b.y || a.y > b.y + b.h); }
+
+  // update scoreboard UI
+  function updateScoreUI() {
+    const me = players[localId] || { score: 0, hp: MAX_HP };
+    youScoreEl.textContent = `You: ${me.score || 0}  HP: ${Math.max(0, Math.round(me.hp||0))}`;
+    const otherId = Object.keys(players).find(id => id !== localId);
+    if (otherId) otherScoreEl.textContent = `Opponent: ${players[otherId].score || 0}`;
+    else otherScoreEl.textContent = 'Opponent: —';
+  }
+
+  // Shooting
+  function tryShoot(owner) {
+    const now = performance.now();
+    const p = players[owner];
+    if (!p || !p.alive) return;
+    if (now - (p._lastShot || 0) < FIRE_COOLDOWN) return;
+    p._lastShot = now;
+    const ang = p.ang || 0;
+    const bx = p.x + Math.cos(ang) * (PLAYER_SIZE/2 + 6);
+    const by = p.y + Math.sin(ang) * (PLAYER_SIZE/2 + 6);
+    bullets.push({ x: bx, y: by, vx: Math.cos(ang) * BULLET_SPEED, vy: Math.sin(ang) * BULLET_SPEED, owner });
+    // notify server if present
+    if (usingServer && socket && socketConnected) {
+      socket.emit('shoot', { roomId: ROOM, id: owner, x: bx, y: by, ang });
     }
   }
-});
 
-socket.on("state",state=>{
-  players=state;
-  if(players[socket.id]) me=players[socket.id];
-});
-
-function draw(){
-  ctx.clearRect(0,0,canvas.width,canvas.height);
-  
-  // Update scoreboard text
-  let scoreText = "";
-  for(let id in players){
-    scoreText += (id===socket.id ? "You: " : "Enemy: ") + players[id].score + " ";
+  // Bullet collisions with covers
+  function bulletHitsCover(b) {
+    for (const c of covers) {
+      if (b.x > c.x && b.x < c.x + c.w && b.y > c.y && b.y < c.y + c.h) return true;
+    }
+    return false;
   }
-  document.getElementById("score").textContent = scoreText.trim();
 
-  // Draw all players
-  for(let id in players){
-    let p=players[id];
-    ctx.fillStyle=id===socket.id?"lime":"red";
-    ctx.fillRect(p.x,p.y,20,20);
-    ctx.fillStyle="white";
-    ctx.fillText("Score:"+p.score,p.x,p.y-5);
+  // Check bullet vs player
+  function bulletHitsPlayer(b, pl) {
+    if (!pl || !pl.alive) return false;
+    const dx = b.x - pl.x, dy = b.y - pl.y;
+    const r = PLAYER_SIZE * 0.6;
+    return dx*dx + dy*dy <= r*r;
   }
-}
 
-function loop(){ update(); draw(); requestAnimationFrame(loop); }
-loop();
+  // small blood spawn
+  function spawnBlood(x,y,amt=10) {
+    for (let i=0;i<amt;i++){
+      particles.push({
+        x,y,
+        vx: (Math.random()-0.5) * 200,
+        vy: (Math.random()-0.9) * 200,
+        life: Math.random()*700 + 300,
+        t0: performance.now(),
+        size: Math.random()*3 + 2
+      });
+    }
+  }
+
+  // Main update loop
+  let lastFrame = performance.now();
+  function update(dt) {
+    const me = players[localId];
+    // input-driven movement for local player
+    if (me && me.alive) {
+      let dx = 0, dy = 0;
+      if (keys['KeyW']) dy -= 1;
+      if (keys['KeyS']) dy += 1;
+      if (keys['KeyA']) dx -= 1;
+      if (keys['KeyD']) dx += 1;
+      // fallback second player controls (Arrow keys + Enter) only in local fallback
+      if (!usingServer) {
+        const other = players['p-other'];
+        if (other && other.alive) {
+          let odx = 0, ody = 0;
+          if (keys['ArrowUp']) ody -= 1;
+          if (keys['ArrowDown']) ody += 1;
+          if (keys['ArrowLeft']) odx -= 1;
+          if (keys['ArrowRight']) odx += 1;
+          if (odx || ody) {
+            const len = Math.hypot(odx,ody) || 1;
+            other.x += (odx/len) * 200 * dt;
+            other.y += (ody/len) * 200 * dt;
+            other.x = clamp(other.x, 20, W-20);
+            other.y = clamp(other.y, 20, H-20);
+            other.ang = Math.atan2(me.y - other.y, me.x - other.x); // simplistic facing
+          }
+          if (keys['Enter']) {
+            tryShoot('p-other');
+          }
+        }
+      }
+
+      if (dx || dy) {
+        const len = Math.hypot(dx,dy) || 1;
+        const speed = 220;
+        me.x += (dx/len) * speed * dt;
+        me.y += (dy/len) * speed * dt;
+        // basic cover collision (simple AABB)
+        const box = { x: me.x - PLAYER_SIZE/2, y: me.y - PLAYER_SIZE/2, w: PLAYER_SIZE, h: PLAYER_SIZE };
+        let coll = false;
+        for (const c of covers) {
+          if (rectOverlap(box, c)) { coll = true; break; }
+        }
+        if (coll) {
+          // revert movement
+          me.x -= (dx/len) * speed * dt;
+          me.y -= (dy/len) * speed * dt;
+        }
+        // bounds
+        me.x = clamp(me.x, 20, W-20);
+        me.y = clamp(me.y, 20, H-20);
+      }
+
+      // facing towards mouse in server mode; in fallback, point at other
+      if (usingServer) {
+        me.ang = Math.atan2(mouse.y - me.y, mouse.x - me.x);
+      } else {
+        const other = players['p-other'];
+        if (other) me.ang = Math.atan2(other.y - me.y, other.x - me.x);
+      }
+
+      // shooting with space
+      if (keys['Space']) { tryShoot(localId); }
+    }
+
+    // update bullets
+    for (let i = bullets.length - 1; i >= 0; i--) {
+      const b = bullets[i];
+      b.x += b.vx * dt;
+      b.y += b.vy * dt;
+      // out of bounds
+      if (b.x < -20 || b.x > W+20 || b.y < -20 || b.y > H+20) { bullets.splice(i,1); continue; }
+      if (bulletHitsCover(b)) { bullets.splice(i,1); continue; }
+      // collision with players
+      for (const id in players) {
+        if (bulletHitsPlayer(b, players[id]) && id !== b.owner) {
+          // apply damage
+          players[id].hp = (players[id].hp || MAX_HP) - 30;
+          if (players[id].hp <= 0) {
+            players[id].alive = false;
+            players[b.owner].score = (players[b.owner].score||0) + 1;
+            // respawn after delay
+            setTimeout(() => {
+              if (players[id]) { players[id].hp = MAX_HP; players[id].alive = true; players[id].x = Math.random()*(W-200)+100; players[id].y = Math.random()*(H-200)+100; }
+            }, 1500);
+          }
+          spawnBlood(b.x, b.y, 10);
+          bullets.splice(i,1);
+          break;
+        }
+      }
+    }
+
+    // particles
+    for (let i = particles.length - 1; i >= 0; i--) {
+      const p = particles[i];
+      const age = performance.now() - p.t0;
+      if (age > p.life) { particles.splice(i,1); continue; }
+      p.x += p.vx * dt;
+      p.y += p.vy * dt;
+      p.vy += 600 * dt; // gravity
+    }
+
+    // send state to server periodically if connected
+    if (usingServer && socket && socketConnected) {
+      const s = {};
+      for (const id in players) {
+        s[id] = { x: players[id].x, y: players[id].y, score: players[id].score, hp: players[id].hp, alive: players[id].alive };
+      }
+      socket.emit('move', { roomId: ROOM, data: s[localId] || {} });
+    }
+
+    updateScoreUI();
+  }
+
+  // Drawing
+  function render() {
+    // background
+    ctx.fillStyle = '#061018';
+    ctx.fillRect(0,0,W,H);
+
+    // subtle grid
+    ctx.save();
+    ctx.globalAlpha = 0.04;
+    ctx.fillStyle = '#1b2836';
+    for (let gx = 0; gx < W; gx += 64) ctx.fillRect(gx, 0, 1, H);
+    for (let gy = 0; gy < H; gy += 64) ctx.fillRect(0, gy, W, 1);
+    ctx.restore();
+
+    // covers
+    for (const c of covers) {
+      ctx.fillStyle = '#12202a';
+      ctx.fillRect(c.x, c.y, c.w, c.h);
+      ctx.strokeStyle = 'rgba(255,255,255,0.03)';
+      ctx.strokeRect(c.x, c.y, c.w, c.h);
+    }
+
+    // bullets
+    for (const b of bullets) {
+      ctx.beginPath();
+      ctx.fillStyle = '#ffd166';
+      ctx.arc(b.x, b.y, 4, 0, Math.PI*2);
+      ctx.fill();
+    }
+
+    // players
+    for (const id in players) {
+      const p = players[id];
+      // shadow
+      ctx.beginPath();
+      ctx.ellipse(p.x, p.y + PLAYER_SIZE/2 + 6, PLAYER_SIZE/1.8, PLAYER_SIZE/3.2, 0, 0, Math.PI*2);
+      ctx.fillStyle = 'rgba(0,0,0,0.45)';
+      ctx.fill();
+
+      // body rotated
+      ctx.save();
+      ctx.translate(p.x, p.y);
+      ctx.rotate(p.ang || 0);
+      ctx.fillStyle = (id === localId) ? getComputedStyle(document.documentElement).getPropertyValue('--player1') : getComputedStyle(document.documentElement).getPropertyValue('--player2');
+      if (!p.alive) ctx.globalAlpha = 0.25;
+      ctx.fillRect(-PLAYER_SIZE/2, -PLAYER_SIZE/2, PLAYER_SIZE, PLAYER_SIZE);
+      // gun stub
+      ctx.fillStyle = '#0b1220';
+      ctx.fillRect(0, -6, PLAYER_SIZE/1.7, 12);
+      ctx.restore();
+
+      // health bar
+      const hpPct = Math.max(0, p.hp || 0) / MAX_HP;
+      const barW = 84;
+      ctx.fillStyle = 'rgba(255,255,255,0.06)';
+      ctx.fillRect(p.x - barW/2, p.y - PLAYER_SIZE/2 - 12, barW, 8);
+      ctx.fillStyle = 'rgba(255,80,90,0.95)';
+      ctx.fillRect(p.x - barW/2, p.y - PLAYER_SIZE/2 - 12, barW * hpPct, 8);
+      ctx.strokeStyle = 'rgba(0,0,0,0.25)';
+      ctx.strokeRect(p.x - barW/2, p.y - PLAYER_SIZE/2 - 12, barW, 8);
+
+      // name & score
+      ctx.fillStyle = '#cbd5e1';
+      ctx.font = '12px Inter, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText((id === localId ? 'You' : 'Opp') + ' • ' + (p.score||0), p.x, p.y + PLAYER_SIZE/2 + 18);
+    }
+
+    // particles
+    for (const q of particles) {
+      const age = performance.now() - q.t0;
+      const t = age / q.life;
+      ctx.globalAlpha = 1 - t;
+      ctx.fillStyle = '#ff3b3b';
+      ctx.beginPath();
+      ctx.arc(q.x, q.y, q.size, 0, Math.PI*2);
+      ctx.fill();
+      ctx.globalAlpha = 1;
+    }
+
+    // crosshair for local player
+    const me = players[localId];
+    if (me) {
+      ctx.beginPath();
+      const cx = usingServer ? mouse.x : me.x + Math.cos(me.ang || 0) * 40;
+      const cy = usingServer ? mouse.y : me.y + Math.sin(me.ang || 0) * 40;
+      ctx.strokeStyle = 'rgba(255,255,255,0.6)';
+      ctx.moveTo(cx - 8, cy);
+      ctx.lineTo(cx + 8, cy);
+      ctx.moveTo(cx, cy - 8);
+      ctx.lineTo(cx, cy + 8);
+      ctx.stroke();
+    }
+
+    // mini scoreboard
+    ctx.fillStyle = 'rgba(0,0,0,0.45)';
+    ctx.fillRect(12, 12, 220, 44);
+    ctx.fillStyle = '#cbd5e1';
+    ctx.font = '14px Inter, sans-serif';
+    ctx.textAlign = 'left';
+    ctx.fillText(`You: ${me ? (me.score||0) : 0}  HP: ${me ? Math.max(0, Math.round(me.hp||0)) : 0}`, 22, 34);
+    const otherId = Object.keys(players).find(id => id !== localId);
+    ctx.fillText(`Opp: ${otherId ? (players[otherId].score||0) : '—'}`, 140, 34);
+  }
+
+  // main loop
+  function loop(now) {
+    const t = now || performance.now();
+    const dt = Math.min(40, t - lastFrame) / 1000;
+    lastFrame = t;
+    update(dt);
+    render();
+    requestAnimationFrame(loop);
+  }
+
+  // init
+  tryInitSocketIo();
+  requestAnimationFrame(loop);
+
+  // mouse tracking for server mode
+  canvas.addEventListener('mousemove', (e) => {
+    const r = canvas.getBoundingClientRect();
+    mouse.x = (e.clientX - r.left) * (canvas.width / r.width);
+    mouse.y = (e.clientY - r.top) * (canvas.height / r.height);
+  });
+  canvas.addEventListener('mousedown', () => { mouse.down = true; });
+  window.addEventListener('mouseup', () => { mouse.down = false; });
+
+  // respawn button
+  btnRespawn.addEventListener('click', () => {
+    if (!players[localId]) spawnLocalPlayer(localId);
+    players[localId].hp = MAX_HP;
+    players[localId].alive = true;
+  });
+
+  // expose simple debug to console (optional)
+  window.__GAME = { players, bullets, particles, covers };
+
+})();
 </script>
+
+<!--
+ Notes:
+ - This client will attempt to use Socket.IO if the script is present.
+ - For online multiplayer, serve this file from a server and run a Socket.IO server (example server code provided earlier).
+ - If Socket.IO client isn't available or connection fails, the file falls back to a local two-player demo (you vs local opponent).
+-->
 </body>
 </html>
